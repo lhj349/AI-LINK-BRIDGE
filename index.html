@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Link Bridge</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="panel">
+      <section class="platform-section" aria-labelledby="platformTitle">
+        <div class="section-heading">
+          <span class="section-kicker">CHOOSE ONE</span>
+          <h1 id="platformTitle">目标平台</h1>
+        </div>
+
+        <div class="provider-grid" role="radiogroup" aria-label="目标平台">
+          <div class="provider-card doubao is-selected" data-provider="doubao" role="radio" aria-checked="true" tabindex="0">
+            <span class="provider-mark">D</span>
+            <span class="provider-name">豆包</span>
+            <span class="provider-subtitle">Doubao</span>
+          </div>
+
+          <div class="provider-card qwen" data-provider="qwen" role="radio" aria-checked="false" tabindex="0">
+            <span class="provider-mark">Q</span>
+            <span class="provider-name">通义千问</span>
+            <span class="provider-subtitle">Qwen</span>
+          </div>
+
+          <div class="provider-card openai" data-provider="openai" role="radio" aria-checked="false" tabindex="0">
+            <span class="provider-mark">O</span>
+            <span class="provider-name">ChatGPT</span>
+            <span class="provider-subtitle">OpenAI</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="prompt-section">
+        <div class="prompt-heading">
+          <label for="prompt">创作指令</label>
+          <span>原样发送</span>
+        </div>
+        <textarea id="prompt" rows="8" placeholder="描述你希望生成或修改的画面..." spellcheck="false"></textarea>
+      </section>
+
+      <button id="runButton" class="primary">
+        <span>开始生成</span>
+      </button>
+
+      <section class="log-section" aria-labelledby="logTitle">
+        <div class="log-heading">
+          <span id="logTitle">运行日志</span>
+          <button id="clearLog" type="button">清空</button>
+        </div>
+        <div id="status" class="status" role="log" aria-live="polite">就绪，选择平台后开始创作。</div>
+      </section>
+    </main>
+    <script src="main.js"></script>
+  </body>
+</html>
