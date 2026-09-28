@@ -1,6 +1,8 @@
 # Photoshop AI 网页联动插件
 
 在 Photoshop 中输入提示词，将当前画布发送到已登录的 AI 网页，生成图片后作为新图层置入 Photoshop。项目通过浏览器扩展操作网页，不直接调用生图 API，也不控制豆包 Windows 客户端。
+<img width="322" height="873" alt="image" src="https://github.com/user-attachments/assets/d18cd59c-c25e-4c75-9424-fad9b261ac38" />
+
 
 ## 当前运行方式
 
