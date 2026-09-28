@@ -1,5 +1,8 @@
 const { app, action, core } = require("photoshop");
 const { storage } = require("uxp");
+const repaint = require('./layer-repaint').createRepaint(require('photoshop'), storage);
+const presetStore = require('./preset-store').createPresetStore(storage.localFileSystem, storage.formats);
+const presetPanel = require('./preset-panel');
 
 const els = {};
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
@@ -10,6 +13,7 @@ const PROVIDER_NAMES = {
   openai: "ChatGPT"
 };
 let selectedProvider = "doubao";
+let selectedMode = "canvas";
 const logEntries = [];
 
 function byId(id) {
@@ -33,6 +37,7 @@ function setStatus(message, isError = false) {
 
 function setBusy(isBusy) {
   els.runButton.disabled = isBusy;
+  document.querySelectorAll(".mode-card").forEach((card) => card.setAttribute("aria-disabled", String(isBusy)));
   els.runButton.textContent = isBusy ? "等待网页 AI 出图..." : "开始生成";
 }
 
@@ -139,7 +144,7 @@ function detectImageFormat(base64Image) {
   throw new Error("网页返回的文件不是有效图片，已停止置入，避免 Photoshop 弹出格式错误窗口。");
 }
 
-async function placeImageAsNewLayer(base64Image, reportedMimeType) {
+async function placeImageAsNewLayer(base64Image, reportedMimeType, target = null) {
   const fs = storage.localFileSystem;
   const tempFolder = await fs.getTemporaryFolder();
   const format = detectImageFormat(base64Image);
@@ -150,21 +155,46 @@ async function placeImageAsNewLayer(base64Image, reportedMimeType) {
   await file.write(base64ToArrayBuffer(base64Image), { format: storage.formats.binary });
   const token = fs.createSessionToken(file);
 
+  if (target) {
+    await repaint.place(token, target);
+    return;
+  }
   await core.executeAsModal(async () => {
     await action.batchPlay([{ _obj: "placeEvent", null: { _path: token, _kind: "local" }, _options: { dialogOptions: "dontDisplay" } }], {});
   }, { commandName: "Place Browser AI Result" });
 }
 
+async function resolveBridgeServerUrl(serverUrl) {
+  const primary = serverUrl.replace(/\/$/, "");
+  const candidates = [primary];
+  const alternate = primary.includes("127.0.0.1")
+    ? primary.replace("127.0.0.1", "localhost")
+    : primary.replace("localhost", "127.0.0.1");
+  if (alternate !== primary) candidates.push(alternate);
+  const failures = [];
+  for (const candidate of candidates) {
+    try {
+      const response = await fetch(`${candidate}/health`, { method: "GET" });
+      if (response.ok) return candidate;
+      failures.push(`${candidate}: HTTP ${response.status}`);
+    } catch (error) {
+      failures.push(`${candidate}: ${error.message || String(error)}`);
+    }
+  }
+  throw new Error(`无法连接本地桥接服务。${failures.join("；")}`);
+}
+
 async function callBridgeServer(payload) {
+  const endpoint = await resolveBridgeServerUrl(payload.serverUrl);
   let response;
   try {
-    response = await fetch(`${payload.serverUrl.replace(/\/$/, "")}/generate`, {
+    response = await fetch(`${endpoint}/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
   } catch (error) {
-    throw new Error("无法连接本地桥接服务。请在项目目录运行：cd server; node index.js");
+    throw new Error(`本地服务健康检查成功，但提交任务失败（${endpoint}）：${error.message || String(error)}`);
   }
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error || `本地服务请求失败 (${response.status})`);
@@ -174,13 +204,26 @@ async function callBridgeServer(payload) {
 async function runWorkflow() {
   const prompt = els.prompt.value.trim();
   const provider = selectedProvider;
+  const mode = selectedMode;
   if (!prompt) throw new Error("请输入出图指令。");
   if (!provider) throw new Error("请选择一个目标平台。");
 
   setBusy(true);
   try {
-    setStatus("正在导出当前画布...");
-    const sourceImage = await exportCurrentCanvas(setStatus);
+    let sourceImage;
+    let target = null;
+    if (mode === 'layer') {
+      setStatus('正在导出所选图层，记录尺寸和位置...');
+      const exported = await repaint.exportLayer();
+      target = exported.target;
+      sourceImage = {mimeType:'image/png',base64:arrayBufferToBase64(exported.buffer)};
+      const b = target.bounds;
+      setStatus(`图层「${target.layerName}」：${b.width} × ${b.height} px，位置 (${b.left}, ${b.top})。`);
+    } else {
+      setStatus("正在导出当前画布...");
+      const exported = await exportCurrentCanvas(setStatus);
+      sourceImage = { mimeType: exported.mimeType, base64: exported.base64 };
+    }
     setStatus("任务已交给浏览器扩展，请保持目标网页打开...");
     const result = await callBridgeServer({
       provider,
@@ -190,7 +233,7 @@ async function runWorkflow() {
       imageMimeType: sourceImage ? sourceImage.mimeType : null
     });
     setStatus("已获取网页生成结果，正在贴回 Photoshop...");
-    await placeImageAsNewLayer(result.imageBase64, result.imageMimeType);
+    await placeImageAsNewLayer(result.imageBase64, result.imageMimeType, target);
     setStatus(`完成：${PROVIDER_NAMES[provider]} 的结果已置入新图层。`);
   } finally {
     setBusy(false);
@@ -198,7 +241,7 @@ async function runWorkflow() {
 }
 
 function init() {
-  ["prompt", "runButton", "clearLog", "status"].forEach((id) => {
+  ["prompt", "runButton", "clearLog", "status", "modeHelp", "presetSelect", "presetName", "presetPrompt", "usePreset", "savePreset", "updatePreset", "deletePreset", "newPreset", "openPresetLibrary", "generationTab", "libraryTab", "generationView", "libraryView"].forEach((id) => {
     els[id] = byId(id);
   });
   document.querySelectorAll(".provider-card").forEach((card) => {
@@ -219,6 +262,26 @@ function init() {
       }
     });
   });
+  const modeDescriptions = {
+    canvas: "导出当前完整画布，生成结果作为新图层置入。",
+    layer: "导出所选像素层或智能对象，按原尺寸和原位置新增结果，原图层保留。"
+  };
+  document.querySelectorAll(".mode-card").forEach((card) => {
+    const selectMode = () => {
+      if (els.runButton.disabled) return;
+      selectedMode = card.dataset.mode;
+      document.querySelectorAll(".mode-card").forEach((item) => {
+        const active = item.dataset.mode === selectedMode;
+        item.classList.toggle("is-selected", active);
+        item.setAttribute("aria-checked", String(active));
+      });
+      els.modeHelp.textContent = modeDescriptions[selectedMode];
+    };
+    card.addEventListener("click", selectMode);
+    card.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectMode(); }
+    });
+  });
   els.clearLog.addEventListener("click", () => {
     logEntries.length = 0;
     els.status.textContent = "日志已清空。";
@@ -232,6 +295,18 @@ function init() {
       setStatus(error.message || String(error), true);
     }
   });
+  presetPanel.createPresetPanel({
+    store: presetStore,
+    elements: {
+      select: els.presetSelect, name: els.presetName, prompt: els.prompt, libraryPrompt: els.presetPrompt,
+      use: els.usePreset, save: els.savePreset, update: els.updatePreset,
+      remove: els.deletePreset, newPreset: els.newPreset, openLibrary: els.openPresetLibrary,
+      generationTab: els.generationTab, libraryTab: els.libraryTab,
+      generationView: els.generationView, libraryView: els.libraryView
+    },
+    notify: setStatus,
+    confirmDelete: (message) => window.confirm(message)
+  }).init().catch((error) => setStatus(error.message || String(error), true));
 }
 
 init();

@@ -8,6 +8,12 @@
   </head>
   <body>
     <main class="panel">
+      <nav class="view-tabs" role="tablist" aria-label="插件页面">
+        <button id="generationTab" class="view-tab is-selected" type="button" role="tab" aria-selected="true">AI 生成</button>
+        <button id="libraryTab" class="view-tab" type="button" role="tab" aria-selected="false">预设库</button>
+      </nav>
+
+      <div id="generationView" class="plugin-view" role="tabpanel">
       <section class="platform-section" aria-labelledby="platformTitle">
         <div class="section-heading">
           <span class="section-kicker">CHOOSE ONE</span>
@@ -16,23 +22,33 @@
 
         <div class="provider-grid" role="radiogroup" aria-label="目标平台">
           <div class="provider-card doubao is-selected" data-provider="doubao" role="radio" aria-checked="true" tabindex="0">
-            <span class="provider-mark">D</span>
             <span class="provider-name">豆包</span>
             <span class="provider-subtitle">Doubao</span>
           </div>
 
           <div class="provider-card qwen" data-provider="qwen" role="radio" aria-checked="false" tabindex="0">
-            <span class="provider-mark">Q</span>
             <span class="provider-name">通义千问</span>
             <span class="provider-subtitle">Qwen</span>
           </div>
 
           <div class="provider-card openai" data-provider="openai" role="radio" aria-checked="false" tabindex="0">
-            <span class="provider-mark">O</span>
             <span class="provider-name">ChatGPT</span>
             <span class="provider-subtitle">OpenAI</span>
           </div>
         </div>
+      </section>
+
+      <section class="mode-section">
+        <span class="mode-label">生成模式</span>
+        <div class="mode-grid" role="radiogroup" aria-label="生成模式">
+          <div class="mode-card is-selected" data-mode="canvas" role="radio" aria-checked="true" tabindex="0">
+            <span><strong>整图生成</strong><small>完整画布</small></span>
+          </div>
+          <div class="mode-card" data-mode="layer" role="radio" aria-checked="false" tabindex="0">
+            <span><strong>图层重绘</strong><small>原位回贴</small></span>
+          </div>
+        </div>
+        <p id="modeHelp">导出当前完整画布，生成结果作为新图层置入。</p>
       </section>
 
       <section class="prompt-section">
@@ -41,6 +57,7 @@
           <span>原样发送</span>
         </div>
         <textarea id="prompt" rows="8" placeholder="描述你希望生成或修改的画面..." spellcheck="false"></textarea>
+        <button id="openPresetLibrary" class="library-link" type="button">打开提示词预设库</button>
       </section>
 
       <button id="runButton" class="primary">
@@ -54,6 +71,33 @@
         </div>
         <div id="status" class="status" role="log" aria-live="polite">就绪，选择平台后开始创作。</div>
       </section>
+      </div>
+
+      <div id="libraryView" class="plugin-view" role="tabpanel" hidden>
+        <section class="library-header">
+          <div>
+            <span class="section-kicker">LOCAL LIBRARY</span>
+            <h1>提示词预设库</h1>
+          </div>
+          <button id="newPreset" type="button">新建</button>
+        </section>
+        <section class="library-browser">
+          <label for="presetSelect">选择预设</label>
+          <select id="presetSelect" aria-label="已保存的提示词"></select>
+        </section>
+        <section class="library-editor">
+          <label for="presetName">预设名称</label>
+          <input id="presetName" type="text" placeholder="例如：柔和水彩" maxlength="60" />
+          <label for="presetPrompt">提示词内容</label>
+          <textarea id="presetPrompt" rows="9" placeholder="在这里编写要保存的提示词..." spellcheck="false"></textarea>
+          <div class="preset-actions">
+            <button id="savePreset" type="button">保存为新预设</button>
+            <button id="updatePreset" type="button">保存修改</button>
+            <button id="deletePreset" class="danger" type="button">删除</button>
+          </div>
+          <button id="usePreset" class="primary use-preset" type="button">使用此提示词并返回生成</button>
+        </section>
+      </div>
     </main>
     <script src="main.js"></script>
   </body>

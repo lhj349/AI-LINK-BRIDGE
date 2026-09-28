@@ -2,7 +2,7 @@
   "manifestVersion": 5,
   "id": "com.codex.ai-link-bridge",
   "name": "AI Link Bridge",
-  "version": "0.1.1",
+  "version": "0.5.1",
   "main": "index.html",
   "host": {
     "app": "PS",
